@@ -44,6 +44,11 @@ def prepare_device(n_gpu_use):
     return device, list_ids
 
 class MetricTracker:
+    """
+    Designed for storing evaluation results (metrics) on each batch, and then aggregated to get final metric
+    Note: it is not suitable to evaluate AUPR/ROC-AUC on each batch and then average, therefore we store all 
+    the true labels and pred scores to calculate the metric just once.
+    """
     def __init__(self, *keys, writer=None):
         self.writer = writer
         self._data = pd.DataFrame(index=keys, columns=['total', 'counts', 'average'])

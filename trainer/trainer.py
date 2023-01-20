@@ -39,6 +39,12 @@ class Trainer(BaseTrainer):
         """
         self.model.train()
         self.train_metrics.reset()
+
+        # store the results from each batch into the list, used for evaluation
+        output_list = []
+        target_list = []
+        loss_list = []
+
         for batch_idx, (data, target) in enumerate(self.data_loader):
             data, target = data.to(self.device), target.to(self.device)
 
@@ -48,20 +54,22 @@ class Trainer(BaseTrainer):
             loss.backward()
             self.optimizer.step()
 
-            self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
-            self.train_metrics.update('loss', loss.item())
-            for met in self.metric_ftns:
-                self.train_metrics.update(met.__name__, met(output, target))
-
-            if batch_idx % self.log_step == 0:
-                self.logger.debug('Train Epoch: {} {} Loss: {:.6f}'.format(
-                    epoch,
-                    self._progress(batch_idx),
-                    loss.item()))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+            loss_list.append(loss.item())
+            output_list.extend(output)
+            target_list.extend(target)
 
             if batch_idx == self.len_epoch:
                 break
+        
+        #self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
+        self.train_metrics.update('loss', np.mean(loss_list))
+        output_list = torch.tensor(output_list)
+        target_list = torch.tensor(target_list)
+        # convert output to probabilities
+        output_list = torch.sigmoid(output_list)
+        for met in self.metric_ftns:
+            self.train_metrics.update(met.__name__, met(output_list, target_list))
+        # get a dictionary storing evaluation results on training set
         log = self.train_metrics.result()
 
         if self.do_validation:
@@ -81,18 +89,28 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         self.valid_metrics.reset()
+
         with torch.no_grad():
+            output_list = []
+            target_list = []
             for batch_idx, (data, target) in enumerate(self.valid_data_loader):
                 data, target = data.to(self.device), target.to(self.device)
 
                 output = self.model(data)
-                loss = self.criterion(output, target)
+                #loss = self.criterion(output, target)
+                output_list.extend(output)
+                target_list.extend(target)
 
-                self.writer.set_step((epoch - 1) * len(self.valid_data_loader) + batch_idx, 'valid')
-                self.valid_metrics.update('loss', loss.item())
-                for met in self.metric_ftns:
-                    self.valid_metrics.update(met.__name__, met(output, target))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+            output_list = torch.tensor(output_list)
+            target_list = torch.tensor(target_list) 
+            loss = self.criterion(output_list, target_list)
+            # convert output to probabilities
+            output_list = torch.sigmoid(output_list)
+
+            #self.writer.set_step((epoch - 1) * len(self.valid_data_loader) + batch_idx, 'valid')
+            self.valid_metrics.update('loss', loss.item())
+            for met in self.metric_ftns:
+                self.valid_metrics.update(met.__name__, met(output_list, target_list))
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():

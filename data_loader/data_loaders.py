@@ -1,6 +1,21 @@
 from torchvision import datasets, transforms
 from base import BaseDataLoader
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
 
+
+class MyDataset(Dataset):
+    def __init__(self, data_dir):
+        self._load_data()
+
+    def _load_data(self):
+        pass
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self, idx):
+        pass
 
 class MnistDataLoader(BaseDataLoader):
     """
